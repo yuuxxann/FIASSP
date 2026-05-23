@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "instance_name": "Fattahi03",
+    "source_file": "Fattahi03.fjs",
+    "format_version": "1.0",
+    "generator": "data_preprocessing.py",
+    "deterministic_seed": 1373146560
+  },
+  "base_info": {
+    "num_products": 3,
+    "num_operations": 6,
+    "num_units": 2,
+    "num_agvs_w": 2,
+    "num_agvs_f": 2,
+    "speed_w": 1,
+    "speed_f": 1.2
+  },
+  "product_operations": {
+    "1": 2,
+    "2": 2,
+    "3": 2
+  },
+  "unit_coordinates": {
+    "Warehouse": [
+      0.5,
+      0.5
+    ],
+    "M1": [
+      0.224211,
+      0.049331
+    ],
+    "M2": [
+      0.556976,
+      0.600809
+    ]
+  },
+  "distances": {
+    "Warehouse": {
+      "Warehouse": 0,
+      "M1": 71,
+      "M2": 16
+    },
+    "M1": {
+      "Warehouse": 71,
+      "M1": 0,
+      "M2": 87
+    },
+    "M2": {
+      "Warehouse": 16,
+      "M1": 87,
+      "M2": 0
+    }
+  },
+  "agv_w_transport_times": {
+    "Warehouse": {
+      "Warehouse": 0,
+      "M1": 71,
+      "M2": 16
+    },
+    "M1": {
+      "Warehouse": 71,
+      "M1": 0,
+      "M2": 87
+    },
+    "M2": {
+      "Warehouse": 16,
+      "M1": 87,
+      "M2": 0
+    }
+  },
+  "agv_f_transport_times": {
+    "Warehouse": {
+      "Warehouse": 0,
+      "M1": 59,
+      "M2": 13
+    },
+    "M1": {
+      "Warehouse": 59,
+      "M1": 0,
+      "M2": 72
+    },
+    "M2": {
+      "Warehouse": 13,
+      "M1": 72,
+      "M2": 0
+    }
+  },
+  "transport_times": {
+    "Warehouse": {
+      "Warehouse": 0,
+      "M1": 71,
+      "M2": 16
+    },
+    "M1": {
+      "Warehouse": 71,
+      "M1": 0,
+      "M2": 87
+    },
+    "M2": {
+      "Warehouse": 16,
+      "M1": 87,
+      "M2": 0
+    }
+  },
+  "processing_times": {
+    "o1_1": {
+      "1": 43
+    },
+    "o1_2": {
+      "1": 87,
+      "2": 95
+    },
+    "o2_1": {
+      "1": 63,
+      "2": 53
+    },
+    "o2_2": {
+      "2": 73
+    },
+    "o3_1": {
+      "1": 125,
+      "2": 135
+    },
+    "o3_2": {
+      "1": 43,
+      "2": 61
+    }
+  },
+  "priority_dict": {
+    "o1_1": [],
+    "o1_2": [],
+    "o2_1": [],
+    "o2_2": [
+      "o2_1"
+    ],
+    "o3_1": [],
+    "o3_2": [
+      "o3_1"
+    ]
+  },
+  "statistics": {
+    "max_processing_time": 135,
+    "operations_with_predecessors": 2,
+    "total_precedence_relations": 2,
+    "average_predecessors_per_operation": 0.333333
+  }
+}
