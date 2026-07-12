@@ -1,10 +1,10 @@
 # IFASSP Benchmark Instances
 
-This repository provides benchmark instances for the automated flexible assembly integrated scheduling problem (IFASSP), together with a reproducible preprocessing script that converts raw `.fjs` files into structured JSON data. The instances are intended to support comparative computational studies involving assembly units, base-workpiece AGVs, and component-kit AGVs. Everyone is welcome to use these results as a comparative baseline.
+This repository provides benchmark instances for the island flexible assembly shop scheduling problem (IFASSP), together with a reproducible preprocessing script that converts raw `.fjs` files into structured JSON data. The instances are intended to support comparative computational studies involving assembly units, base-workpiece AGVs, and component-kit AGVs. Everyone is welcome to use these results as a comparative baseline.
 
 ## Repository Contents
 
-The raw instances are stored in `rawdata/` as plain-text `.fjs` files derived from the MK, Kumar, and Behnke benchmark families. The preprocessing script writes renamed JSON instances directly into three scale-specific folders:
+The raw instances are stored in `rawdata/` as plain-text `.fjs` files derived from the Fattahi, Kumar, and Behnke benchmark families. The preprocessing script writes renamed JSON instances directly into three scale-specific folders:
 
 | Folder                | Scale rule                      |
 | --------------------- | ------------------------------- |
@@ -46,7 +46,7 @@ python data_preprocessing.py
 
 By default, the script reads all `.fjs` files from `rawdata/`, validates the declared operation count, assigns deterministic coordinates to the warehouse and assembly units, computes a scaled Euclidean distance matrix, and derives separate travel-time matrices for base-workpiece and component-kit AGVs. For each product, a random topological order of its operations is first sampled; predecessor relations are then randomly selected from operations that appear earlier in this sampled order, so the resulting precedence graph is random but acyclic by construction.
 
-The generated instances are renamed using compact academic benchmark identifiers: `AFAISP-Sxx`, `AFAISP-Mxx`, and `AFAISP-Lxx`. The original raw instance name is preserved in the JSON metadata as `original_instance_name` and is also listed in `instance_name_mapping.csv`.
+The generated instances are renamed using compact academic benchmark identifiers: `IFASSP-Sxx`, `IFASSP-Mxx`, and `IFASSP-Lxx`. The original raw instance name is preserved in the JSON metadata as `original_instance_name` and is also listed in `instance_name_mapping.csv`.
 
 ## Processed JSON Fields
 
