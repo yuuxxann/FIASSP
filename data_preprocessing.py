@@ -1,21 +1,20 @@
-"""Preprocess FJS benchmark files into reusable instance data files.
+"""Preprocess raw FJS benchmark files into scale-specific JSON instances.
 
-The script reads every ``.fjs`` file in the current directory, parses the
+The script reads every ``.fjs`` file from ``rawdata/`` by default, parses the
 flexible job-shop processing data, derives transport-related matrices and
-operation precedence relations, and writes one output file per input instance.
-JSON is used by default because it is language-independent and convenient for
-archival release with a paper repository.
+operation precedence relations, and writes renamed JSON instances into
+``IFASSP_S/``, ``IFASSP_M/``, and ``IFASSP_L/``.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
 import random
 from pathlib import Path
-from pprint import pformat
 from typing import Any
 
 
@@ -31,9 +30,28 @@ HEADER_FIELDS = (
 
 WAREHOUSE = "Warehouse"
 DEFAULT_WAREHOUSE_COORDS = (0.5, 0.5)
+SCALE_RULES = (
+    ("small", "IFASSP-S", "IFASSP_S", 0, 49),
+    ("medium", "IFASSP-M", "IFASSP_M", 50, 150),
+    ("large", "IFASSP-L", "IFASSP_L", 151, None),
+)
+MAPPING_FIELDS = (
+    "original_instance_name",
+    "original_file",
+    "scale_class",
+    "renamed_instance_name",
+    "renamed_file",
+    "num_products",
+    "num_operations",
+    "num_units",
+    "num_agvs_w",
+    "num_agvs_f",
+    "speed_w",
+    "speed_f",
+)
 
 
-def stable_seed(instance_name: str, base_seed: int = 20260523) -> int:
+def stable_seed(instance_name: str, base_seed: int = 20260521) -> int:
     """Return a reproducible seed for each instance name."""
     digest = hashlib.sha256(instance_name.encode("utf-8")).hexdigest()
     return (int(digest[:16], 16) + base_seed) % (2**32)
@@ -170,15 +188,20 @@ def generate_priority_dict(
 ) -> dict[str, list[str]]:
     """Generate reproducible within-product predecessor sets.
 
-    Only earlier operations of the same product may be selected as predecessors;
-    therefore, the resulting precedence graph is acyclic by construction.
+    A random topological order is sampled for each product. Predecessors are
+    then selected only from operations that appear earlier in this sampled
+    order, which makes the precedence relations random while preserving
+    acyclicity.
     """
     priority_dict: dict[str, list[str]] = {}
 
     for product_id in sorted(product_operations):
         operation_keys = [f"o{product_id}_{idx}" for idx in range(1, product_operations[product_id] + 1)]
-        for index, operation_key in enumerate(operation_keys):
-            possible_predecessors = operation_keys[:index]
+        topological_order = operation_keys[:]
+        rng.shuffle(topological_order)
+
+        for index, operation_key in enumerate(topological_order):
+            possible_predecessors = topological_order[:index]
             if not possible_predecessors or rng.random() >= predecessor_probability:
                 priority_dict[operation_key] = []
                 continue
@@ -187,7 +210,7 @@ def generate_priority_dict(
             predecessors = rng.sample(possible_predecessors, predecessor_count)
             priority_dict[operation_key] = sorted(predecessors, key=operation_sort_key)
 
-    return priority_dict
+    return dict(sorted(priority_dict.items(), key=lambda item: operation_sort_key(item[0])))
 
 
 def operation_sort_key(operation_key: str) -> tuple[int, int]:
@@ -240,7 +263,6 @@ def build_instance(path: Path, base_seed: int) -> dict[str, Any]:
         "distances": distances,
         "agv_w_transport_times": agv_w_transport_times,
         "agv_f_transport_times": agv_f_transport_times,
-        "transport_times": distances,
         "processing_times": processing_times,
         "priority_dict": priority_dict,
         "statistics": {
@@ -263,92 +285,118 @@ def write_json(instance: dict[str, Any], output_path: Path) -> None:
     )
 
 
-def write_python(instance: dict[str, Any], output_path: Path) -> None:
-    """Write a preprocessed instance as a Python module with uppercase variables."""
-    lines = [
-        '"""Preprocessed benchmark instance generated from an FJS file."""',
-        "",
-        f"METADATA = {pformat(instance['metadata'], width=100, sort_dicts=False)}",
-        f"BASE_INFO = {pformat(instance['base_info'], width=100, sort_dicts=False)}",
-        f"NUM_PRODUCTS = {instance['base_info']['num_products']}",
-        f"NUM_OPERATIONS = {instance['base_info']['num_operations']}",
-        f"NUM_UNITS = {instance['base_info']['num_units']}",
-        f"NUM_AGVS_W = {instance['base_info']['num_agvs_w']}",
-        f"NUM_AGVS_F = {instance['base_info']['num_agvs_f']}",
-        f"SPEED_W = {instance['base_info']['speed_w']}",
-        f"SPEED_F = {instance['base_info']['speed_f']}",
-        f"PRODUCT_OPERATIONS = {pformat(instance['product_operations'], width=100, sort_dicts=False)}",
-        f"UNIT_COORDINATES = {pformat(instance['unit_coordinates'], width=100, sort_dicts=False)}",
-        f"DISTANCES = {pformat(instance['distances'], width=100, sort_dicts=False)}",
-        f"AGV_W_TRANSPORT_TIMES = {pformat(instance['agv_w_transport_times'], width=100, sort_dicts=False)}",
-        f"AGV_F_TRANSPORT_TIMES = {pformat(instance['agv_f_transport_times'], width=100, sort_dicts=False)}",
-        "TRANSPORT_TIMES = DISTANCES.copy()",
-        f"PROCESSING_TIMES = {pformat(instance['processing_times'], width=100, sort_dicts=False)}",
-        f"PRIORITY_DICT = {pformat(instance['priority_dict'], width=100, sort_dicts=False)}",
-        f"STATISTICS = {pformat(instance['statistics'], width=100, sort_dicts=False)}",
-        "",
-    ]
-    output_path.write_text("\n".join(lines), encoding="utf-8")
+def scale_class(num_operations: int) -> tuple[str, str, str]:
+    """Return the scale label, filename prefix, and output directory name."""
+    for label, prefix, directory, lower, upper in SCALE_RULES:
+        if num_operations >= lower and (upper is None or num_operations <= upper):
+            return label, prefix, directory
+    raise ValueError(f"Unsupported operation count: {num_operations}")
 
 
-def preprocess_folder(
-    input_dir: Path,
-    output_dir: Path,
-    output_format: str = "json",
-    overwrite: bool = True,
-    base_seed: int = 20260523,
-) -> list[Path]:
-    """Preprocess all FJS files in a directory in lexicographic order."""
-    writers = {"json": write_json, "py": write_python}
-    suffix = f".{output_format}"
+def prepare_output_dirs(root_dir: Path) -> dict[str, Path]:
+    """Create scale directories and remove stale generated JSON files."""
+    output_dirs: dict[str, Path] = {}
+    for _, _, directory, _, _ in SCALE_RULES:
+        output_dir = root_dir / directory
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for old_file in output_dir.glob("*.json"):
+            old_file.unlink()
+        output_dirs[directory] = output_dir
+    return output_dirs
+
+
+def mapping_row(
+    original_name: str,
+    source_path: Path,
+    scale_label: str,
+    new_name: str,
+    output_path: Path,
+    base_info: dict[str, Any],
+    root_dir: Path,
+) -> dict[str, Any]:
+    """Build one CSV mapping row."""
+    return {
+        "original_instance_name": original_name,
+        "original_file": source_path.relative_to(root_dir).as_posix(),
+        "scale_class": scale_label,
+        "renamed_instance_name": new_name,
+        "renamed_file": output_path.relative_to(root_dir).as_posix(),
+        "num_products": base_info["num_products"],
+        "num_operations": base_info["num_operations"],
+        "num_units": base_info["num_units"],
+        "num_agvs_w": base_info["num_agvs_w"],
+        "num_agvs_f": base_info["num_agvs_f"],
+        "speed_w": base_info["speed_w"],
+        "speed_f": base_info["speed_f"],
+    }
+
+
+def write_mapping_csv(rows: list[dict[str, Any]], path: Path) -> None:
+    """Write the instance-name mapping table."""
+    with path.open("w", newline="", encoding="utf-8-sig") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=MAPPING_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def preprocess_folder(input_dir: Path, root_dir: Path, base_seed: int = 20260521) -> tuple[list[Path], list[dict[str, Any]]]:
+    """Preprocess all FJS files into scale-specific JSON folders."""
+    output_dirs = prepare_output_dirs(root_dir)
+    counters = {label: 0 for label, _, _, _, _ in SCALE_RULES}
     output_paths: list[Path] = []
-    output_dir.mkdir(parents=True, exist_ok=True)
+    mapping_rows: list[dict[str, Any]] = []
 
+    instances = []
     for fjs_path in sorted(input_dir.glob("*.fjs")):
-        output_path = output_dir / f"{fjs_path.stem}{suffix}"
-        if output_path.exists() and not overwrite:
-            raise FileExistsError(f"{output_path.name} already exists. Use --overwrite to replace it.")
-
         instance = build_instance(fjs_path, base_seed)
-        writers[output_format](instance, output_path)
-        output_paths.append(output_path)
+        instances.append((fjs_path, instance))
 
-    return output_paths
+    instances.sort(
+        key=lambda item: (
+            [rule[0] for rule in SCALE_RULES].index(scale_class(int(item[1]["base_info"]["num_operations"]))[0]),
+            int(item[1]["base_info"]["num_operations"]),
+            item[0].stem,
+        )
+    )
+
+    for fjs_path, instance in instances:
+        base_info = instance["base_info"]
+        label, prefix, directory = scale_class(int(base_info["num_operations"]))
+        counters[label] += 1
+        new_name = f"{prefix}{counters[label]:02d}"
+        output_path = output_dirs[directory] / f"{new_name}.json"
+
+        instance["metadata"]["original_instance_name"] = fjs_path.stem
+        instance["metadata"]["instance_name"] = new_name
+        write_json(instance, output_path)
+        output_paths.append(output_path)
+        mapping_rows.append(mapping_row(fjs_path.stem, fjs_path, label, new_name, output_path, base_info, root_dir))
+
+    return output_paths, mapping_rows
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line options."""
     parser = argparse.ArgumentParser(
-        description="Preprocess all .fjs benchmark files in a folder into JSON or Python data files."
+        description="Preprocess raw .fjs files into scale-specific JSON benchmark folders."
     )
     parser.add_argument(
         "--input-dir",
         type=Path,
-        default=Path.cwd(),
-        help="Directory containing .fjs files. Defaults to the current working directory.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help="Directory for generated files. Defaults to <input-dir>/data.",
-    )
-    parser.add_argument(
-        "--format",
-        choices=("json", "py"),
-        default="json",
-        help="Output file format. JSON is recommended for paper repositories.",
+        default=Path("rawdata"),
+        help="Directory containing raw .fjs files. Defaults to ./rawdata.",
     )
     parser.add_argument(
         "--base-seed",
         type=int,
-        default=20260523,
+        default=20260521,
         help="Base seed used to derive deterministic instance-specific random seeds.",
     )
     parser.add_argument(
-        "--no-overwrite",
-        action="store_true",
-        help="Fail if an output file already exists.",
+        "--mapping-file",
+        type=Path,
+        default=Path("instance_name_mapping.csv"),
+        help="CSV file used to record original and renamed instance names.",
     )
     return parser.parse_args()
 
@@ -356,20 +404,21 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Run folder-level preprocessing."""
     args = parse_args()
+    root_dir = Path.cwd().resolve()
     input_dir = args.input_dir.resolve()
-    output_dir = args.output_dir.resolve() if args.output_dir else input_dir / "data"
-    output_paths = preprocess_folder(
+    mapping_file = args.mapping_file.resolve()
+    output_paths, mapping_rows = preprocess_folder(
         input_dir=input_dir,
-        output_dir=output_dir,
-        output_format=args.format,
-        overwrite=not args.no_overwrite,
+        root_dir=root_dir,
         base_seed=args.base_seed,
     )
+    write_mapping_csv(mapping_rows, mapping_file)
 
-    print(f"Processed {len(output_paths)} FJS instance(s).")
-    print(f"Output directory: {output_dir}")
-    for output_path in output_paths:
-        print(f"  {output_path.name}")
+    print(f"Processed {len(output_paths)} instance(s).")
+    for label, _, directory, _, _ in SCALE_RULES:
+        count = sum(1 for row in mapping_rows if row["scale_class"] == label)
+        print(f"  {directory}: {count}")
+    print(f"Mapping file: {mapping_file}")
 
 
 if __name__ == "__main__":
