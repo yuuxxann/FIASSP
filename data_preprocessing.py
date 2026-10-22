@@ -3,7 +3,7 @@
 The script reads every ``.fjs`` file from ``rawdata/`` by default, parses the
 flexible job-shop processing data, derives transport-related matrices and
 operation precedence relations, and writes renamed JSON instances into
-``IFASSP_S/``, ``IFASSP_M/``, and ``IFASSP_L/``.
+``FIASSP_S/``, ``FIASSP_M/``, and ``FIASSP_L/``.
 """
 
 from __future__ import annotations
@@ -31,9 +31,9 @@ HEADER_FIELDS = (
 WAREHOUSE = "Warehouse"
 DEFAULT_WAREHOUSE_COORDS = (0.5, 0.5)
 SCALE_RULES = (
-    ("small", "IFASSP-S", "IFASSP_S", 0, 49),
-    ("medium", "IFASSP-M", "IFASSP_M", 50, 150),
-    ("large", "IFASSP-L", "IFASSP_L", 151, None),
+    ("small", "FIASSP-S", "FIASSP_S", 0, 49),
+    ("medium", "FIASSP-M", "FIASSP_M", 50, 150),
+    ("large", "FIASSP-L", "FIASSP_L", 151, None),
 )
 MAPPING_FIELDS = (
     "original_instance_name",
